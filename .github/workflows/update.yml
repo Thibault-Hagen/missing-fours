@@ -1,0 +1,99 @@
+name: Rebuild data and publish
+
+on:
+  schedule:
+    # Saturdays at 6:41 am Chicago time, after the week's 10-Q and 10-K filings
+    - cron: "41 11 * * 6"
+  workflow_dispatch:
+    inputs:
+      keep_facts:
+        description: "Also save the extracted SEC facts as a downloadable artifact"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - "pipeline/**"
+      - ".github/workflows/update.yml"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: rebuild
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    outputs:
+      has_site: ${{ steps.site.outputs.has_site }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the one optional dependency (faster JSON)
+        run: pip install orjson
+
+      - name: Extract EPS facts from the SEC's XBRL data
+        env:
+          SEC_USER_AGENT: "The Missing Fours research project HagenThibault@gmail.com"
+        run: python pipeline/extract.py
+
+      - name: Save extracted facts to the facts branch for inspection
+        if: inputs.keep_facts || github.event_name == 'push'
+        run: |
+          mkdir -p /tmp/facts
+          cp build/facts.jsonl.gz pipeline/cache/*.json /tmp/facts/
+          cd /tmp/facts
+          git init -q -b facts
+          git add .
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Extracted EPS facts $(date -u +%Y-%m-%d)"
+          git push -f -q "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" facts
+
+      - name: Rebuild unrounded EPS and the statistics
+        if: hashFiles('pipeline/analyze.py') != ''
+        run: python pipeline/analyze.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pipeline/cache
+          if [ -d site/data ]; then git add site/data; fi
+          if git diff --cached --quiet; then
+            echo "Nothing changed"
+          else
+            git commit -m "Data rebuild $(date -u +%Y-%m-%d)"
+            git pull --rebase --quiet origin main
+            git push
+          fi
+
+      - name: Check for a site to publish
+        id: site
+        run: |
+          if [ -f site/index.html ]; then echo "has_site=true" >> "$GITHUB_OUTPUT"; else echo "has_site=false" >> "$GITHUB_OUTPUT"; fi
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.has_site == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
