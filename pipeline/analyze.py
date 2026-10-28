@@ -48,15 +48,16 @@ MIN_EPS = Fraction(1, 10)  # below $0.10 the tenth-of-a-cent digit is not unifor
 MIN_QUARTERS = 20  # quarters needed before a company gets a probability
 INITIATIVE_DATE = "2020-09-28"  # SEC announced its first EPS Initiative cases
 
-# Companies the SEC has charged in rounding-related earnings management cases.
+# Companies charged under the SEC's EPS Initiative, from the SEC's own releases.
+# "key" lists quarter-end dates the SEC named specifically, where it did.
 CASES = [
     {
         "ticker": "TILE",
         "name": "Interface Inc.",
-        "when": "2015-2016",
         "from": "2015-01-01",
         "to": "2016-12-31",
-        "what": "Unsupported manual adjustments, including to bonus accruals and stock-based compensation, that let it meet or beat consensus EPS.",
+        "key": [],
+        "what": "Made unsupported manual adjustments, including to bonus accruals and stock-based compensation, in quarters when it was on track to miss consensus EPS.",
         "penalty": "$5 million",
         "date": "2020-09-28",
         "url": "https://www.sec.gov/news/press-release/2020-226",
@@ -64,13 +65,46 @@ CASES = [
     {
         "ticker": "FULT",
         "name": "Fulton Financial Corporation",
-        "when": "2016-2017",
         "from": "2016-07-01",
         "to": "2017-09-30",
-        "what": "A mortgage servicing rights valuation allowance inconsistent with its stated method, reversed in a quarter where it lifted EPS by one cent to meet consensus.",
+        "key": [],
+        "what": "Carried a valuation allowance that conflicted with its own stated method, then reversed it in mid-2017, lifting EPS by one cent in a quarter it would otherwise have missed consensus.",
         "penalty": "$1.5 million",
         "date": "2020-09-28",
         "url": "https://www.sec.gov/news/press-release/2020-226",
+    },
+    {
+        "ticker": "HCSG",
+        "name": "Healthcare Services Group",
+        "from": "2014-01-01",
+        "to": "2015-12-31",
+        "key": [],
+        "what": "Did not accrue or disclose litigation loss contingencies when GAAP required, while reporting EPS that met or came close to consensus.",
+        "penalty": "$6 million",
+        "date": "2021-08-24",
+        "url": "https://www.sec.gov/news/press-release/2021-162",
+    },
+    {
+        "ticker": "ROL",
+        "name": "Rollins, Inc.",
+        "from": "2016-01-01",
+        "to": "2018-12-31",
+        "key": ["2016-03-31", "2017-06-30"],
+        "what": "Reduced accounting reserves without support, by enough to round quarterly EPS up to the next cent.",
+        "penalty": "$8 million",
+        "date": "2022-04-18",
+        "url": "https://www.sec.gov/news/press-release/2022-64",
+    },
+    {
+        "ticker": "GNTX",
+        "name": "Gentex Corporation",
+        "from": "2015-01-01",
+        "to": "2018-12-31",
+        "key": ["2015-09-30"],
+        "what": "Cut a performance bonus accrual without the required GAAP analysis so EPS met analyst estimates, and made similar adjustments through 2018.",
+        "penalty": "$4 million",
+        "date": "2023-02-07",
+        "url": "https://www.sec.gov/enforce/34-96819-s",
     },
 ]
 
@@ -398,9 +432,11 @@ def main():
                     and o.get("fine") is not None
                     and o["src"] == "avail"
                     and o["reported"] > Fraction(1, 2)
+                    and o["n"].denominator == 1
+                    and o["d"].denominator == 1
                     and tick[0]
                 ):
-                    examples.append((cik, tick[0], c["name"], r[END], label(r), r[FY], float(o["reported"]), r6(o["lo"]), r6(o["hi"]), o["digit"], o["fine"]))
+                    examples.append((cik, tick[0], c["name"], r[END], label(r), r[FY], float(o["reported"]), r6(o["lo"]), r6(o["hi"]), o["digit"], o["fine"], int(o["n"]), int(o["d"]), r[FORM]))
 
             if not co_rows:
                 continue
@@ -478,6 +514,11 @@ def main():
         "expected": sum(0.9 ** e["n"] for e in tested),
     }
 
+    summary["board"] = [
+        {k: e.get(k) for k in ("cik", "ticker", "name", "n", "k4", "k5", "p", "q", "rank", "office")}
+        for e in ranked[:15]
+    ]
+
     by_tick = {e["ticker"]: e for e in companies if e["ticker"]}
     cases = []
     for case in CASES:
@@ -487,7 +528,7 @@ def main():
             rows = detail[str(e["cik"])]
             inside = [r for r in rows if r[2] == "Q" and case["from"] <= r[0] <= case["to"]]
             item.update({"cik": e["cik"], "n": e["n"], "k4": e["k4"], "k5": e["k5"], "p": e["p"],
-                         "window": [[r[0], r[3], r[4], r[8], r[13], r[14]] for r in inside]})
+                         "window": [[r[0], r[3], r[4], r[8], r[13], r[14], r[0] in case["key"]] for r in inside]})
         cases.append(item)
     summary["cases"] = cases
 
@@ -502,7 +543,7 @@ def main():
         if len(pick) == 2:
             break
     summary["examples"] = {
-        k: dict(zip(["cik", "ticker", "name", "end", "fp", "fy", "reported", "lo", "hi", "digit", "fine"], v))
+        k: dict(zip(["cik", "ticker", "name", "end", "fp", "fy", "reported", "lo", "hi", "digit", "fine", "num", "den", "form"], v))
         for k, v in pick.items()
     }
 
@@ -528,6 +569,7 @@ def main():
     with open(os.path.join(OUT, "index.json"), "w") as f:
         json.dump({"rows": index}, f, separators=(",", ":"))
 
+    case_by_ticker = {c["ticker"]: c for c in CASES}
     keep = set()
     rcols = ["end", "start", "kind", "fp", "fy", "form", "accn", "filed", "eps", "num", "den", "lo", "hi", "digit", "status", "src"]
     for e in companies:
@@ -538,6 +580,9 @@ def main():
         body = {k: e.get(k) for k in ("cik", "ticker", "exch", "name", "office", "cat", "sicd", "n", "k4", "k5", "counts",
                                        "nloss", "loss_counts", "p", "p45", "q", "rank", "first", "last")}
         body["tested"] = m
+        case = case_by_ticker.get(e["ticker"])
+        if case:
+            body["case"] = {k: case[k] for k in ("date", "penalty", "what", "url", "from", "to", "key")}
         body["cols"] = rcols
         body["rows"] = detail[cik]
         with open(os.path.join(OUT, "co", cik + ".json"), "w") as f:

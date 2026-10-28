@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Company | The Missing Fours</title>
+<meta name="description" content="Every quarter's earnings per share for one company, rebuilt to the tenth of a cent from its SEC filings.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the company</a>
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="index.html">The Missing <span class="four">4</span>s</a>
+    <nav class="nav" aria-label="Site">
+      <a href="index.html">Story</a>
+      <a href="companies.html">Companies</a>
+      <a href="method.html">Method</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <div class="co-head">
+    <h1 id="co-name">Loading&hellip;</h1>
+    <div class="co-facts" id="co-facts"></div>
+  </div>
+  <p class="verdict" id="verdict"></p>
+  <div class="facts-row" id="facts"></div>
+
+  <section id="digits-sec">
+    <h2 style="margin-top:2.5rem">Its tenth-of-a-cent digits</h2>
+    <p class="figure-sub">Quarters with diluted EPS of $0.10 or more whose digit could be pinned down. The line is the count chance would give each digit.</p>
+    <div class="chart" id="chart-co" style="max-width:40rem"></div>
+  </section>
+
+  <section>
+    <h2 style="margin-top:2.5rem">Quarter by quarter</h2>
+    <p class="figure-sub">Each square is one quarter, oldest first, showing its tenth-of-a-cent digit.</p>
+    <div class="status-key" aria-hidden="true">
+      <span><i class="cell c4"></i>A 4</span>
+      <span><i class="cell c5"></i>A 5</span>
+      <span><i class="cell"></i>Other digit</span>
+      <span><i class="cell loss"></i>Loss quarter</span>
+      <span><i class="cell na"></i>Not tested</span>
+    </div>
+    <div class="strip" id="strip" role="list"></div>
+    <div class="year-labels" id="strip-years"></div>
+  </section>
+
+  <section>
+    <h2 style="margin-top:2.5rem">The numbers behind each quarter</h2>
+    <p class="figure-sub">Unrounded EPS is the numerator divided by the share count, as reported in the first filing for that period. Only the digits that the rounded inputs pin down are shown.</p>
+    <div class="toggle" role="group" aria-label="Periods to show">
+      <button type="button" id="show-q" aria-pressed="true">Quarters</button>
+      <button type="button" id="show-a" aria-pressed="false">Full years</button>
+    </div>
+    <div class="table-scroll"><table class="ledger" id="rows"></table></div>
+  </section>
+  <p class="small" style="margin-top:1.5rem" id="co-foot"></p>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Built by Thibault Hagen. Data from SEC EDGAR XBRL filings, rebuilt every week.</p>
+    <p>A shortage of 4s is a statistical pattern. On its own it does not show that any company broke a rule. Nothing here is investment advice.</p>
+    <p><a href="https://github.com/Thibault-Hagen/missing-fours">Source code on GitHub</a></p>
+  </div>
+</footer>
+<script src="assets/common.js"></script>
+<script src="assets/charts.js"></script>
+<script src="assets/company.js"></script>
+</body>
+</html>

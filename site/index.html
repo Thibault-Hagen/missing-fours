@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Missing Fours</title>
+<meta name="description" content="Rebuilding the hidden tenth-of-a-cent digit in every US public company's earnings per share, to see whether companies round their way to the next penny.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="The Missing Fours">
+<meta property="og:description" content="The digit that rounding throws away should be 4 one time in ten. I rebuilt it from SEC filings for every public company to check.">
+<meta property="og:image" content="https://thibault-hagen.github.io/missing-fours/og-image.png">
+<meta property="og:url" content="https://thibault-hagen.github.io/missing-fours/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the story</a>
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="index.html">The Missing <span class="four">4</span>s</a>
+    <nav class="nav" aria-label="Site">
+      <a href="index.html">Story</a>
+      <a href="companies.html">Companies</a>
+      <a href="method.html">Method</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="wrap hero">
+    <div>
+      <h1>The Missing Fours</h1>
+      <p class="lede" id="lede">Companies report earnings per share rounded to the cent. I rebuilt the unrounded number from SEC filings for every public company, to look at the one digit that rounding throws away. It should be a 4 one time in ten.</p>
+      <p class="hero-meta" id="hero-meta">Loading the latest numbers&hellip;</p>
+      <p class="byline">By Thibault Hagen</p>
+    </div>
+    <aside class="tape" id="tape" aria-label="Worked example from a real filing"></aside>
+  </section>
+
+  <article class="wrap story">
+    <h2>A tenth of a cent</h2>
+    <aside class="note"><p><strong>Two kinds of EPS.</strong> Basic EPS divides by shares actually outstanding. Diluted EPS also counts shares that options, convertibles and other securities could create. Diluted is the headline number, so it is the one used here; basic gives the same result.</p></aside>
+    <p>Earnings per share is net income for the common shareholders divided by the average number of shares outstanding. Companies publish it to two decimal places, so a quarter that works out to $0.1249 is reported as $0.12, and one that works out to $0.1250 is reported as $0.13. The gap between those two quarters is a hundredth of a cent. The gap in the headline is a full cent.</p>
+    <p>That cent matters because analysts publish their consensus estimate to the cent, and a company that misses it by a penny can see its stock fall. The tenth-of-a-cent digit is where a small judgment call (a bonus accrual trimmed, a reserve released a quarter early) can turn a 4 into a 5, and a miss into a match.</p>
+    <aside class="note"><p><strong>Why only EPS of $0.10 or more.</strong> In small numbers, low digits are more common than high ones (Benford's law). From $0.10 up, the tenth of a cent is the third significant digit or later, where every digit is within 0.2 points of 10%.</p></aside>
+    <p>If nobody touched the numbers, that digit would be close to random, with each of 0 through 9 turning up about 10% of the time. A shortage of 4s, with a matching surplus of 5s, is the fingerprint of rounding up on purpose.</p>
+    <p>Three finance and law researchers, one of them former SEC commissioner Joseph Grundfest, named the pattern quadrophobia. Studying company reports from 1980 to 2017, they found that 4 was the rarest digit in that spot, and that companies avoiding it were more likely to restate their results later and to face SEC enforcement or shareholder lawsuits. The SEC's Division of Enforcement uses data analytics built on the same idea. Its EPS Initiative, which announced its first cases in 2020, has been reported to screen for companies with too few 4s, and its cases include Interface, Fulton Financial, Healthcare Services Group, Rollins and Gentex.</p>
+    <p>Both of those efforts rely on paid or private data. This site rebuilds the digit from public SEC filings for every company that files them, and redoes it every week.</p>
+
+    <h2 id="finding-h">What the filings show</h2>
+    <div class="figure" id="fig-digits">
+      <p class="figure-title">How often each tenth-of-a-cent digit appears, compared with the 10% expected by chance</p>
+      <p class="figure-sub" id="fig-digits-sub"></p>
+      <div class="legend" aria-hidden="true"><span><i class="key key-4"></i>4, rounds down</span><span><i class="key key-5"></i>5, rounds up</span><span><i class="key key-other"></i>Other digits</span></div>
+      <div class="chart" id="chart-digits"></div>
+      <details class="table-view"><summary>Table of these numbers</summary><div class="table-scroll" id="table-digits"></div></details>
+    </div>
+    <div id="finding-text"></div>
+
+    <h2>The half-cent line</h2>
+    <p id="cliff-intro">If companies were nudging results across the rounding line, the missing quarters should come from just below half a cent and reappear just above it. Splitting each digit into ten finer slices shows where they go.</p>
+    <div class="figure" id="fig-cliff">
+      <p class="figure-title">Unrounded EPS, by the digits just past the cent</p>
+      <p class="figure-sub" id="fig-cliff-sub"></p>
+      <div class="chart" id="chart-cliff"></div>
+      <details class="table-view"><summary>Table of these numbers</summary><div class="table-scroll" id="table-cliff"></div></details>
+    </div>
+    <div id="cliff-text"></div>
+
+    <h2>When the result is a loss</h2>
+    <p>Rounding works the other way for a loss. A loss of $0.1249 per share is reported as $(0.12), a loss of $0.1250 as $(0.13). A company trying to look better wants to stay below the line, so if the pattern comes from deliberate rounding, losses should show extra 4s, not missing ones.</p>
+    <div class="figure" id="fig-loss">
+      <p class="figure-title">The same digit chart for quarters with a loss of $0.10 per share or more</p>
+      <p class="figure-sub" id="fig-loss-sub"></p>
+      <div class="chart" id="chart-loss"></div>
+      <details class="table-view"><summary>Table of these numbers</summary><div class="table-scroll" id="table-loss"></div></details>
+    </div>
+    <div id="loss-text"></div>
+
+    <h2>Did the SEC's screen change anything?</h2>
+    <p id="years-intro">The SEC announced its first EPS Initiative cases in September 2020 and described the method publicly. If companies changed their behavior after that, the share of 4s should move back toward 10%.</p>
+    <div class="figure" id="fig-years">
+      <p class="figure-title">Share of quarters whose tenth-of-a-cent digit is 4 or 5, by year</p>
+      <p class="figure-sub">The shaded band is the 95% confidence interval for the share of 4s.</p>
+      <div class="legend" aria-hidden="true"><span><i class="key line key-4"></i>4s</span><span><i class="key line key-5"></i>5s</span></div>
+      <div class="chart" id="chart-years"></div>
+      <details class="table-view"><summary>Table of these numbers</summary><div class="table-scroll" id="table-years"></div></details>
+    </div>
+    <div id="years-text"></div>
+
+    <h2>Who rounds</h2>
+    <p>The SEC sorts companies by size into filer categories, using the market value of shares held by outside investors. Large accelerated filers have $700 million or more, are covered by the most analysts, and have the most to lose from a missed estimate.</p>
+    <div class="figure" id="fig-groups">
+      <p class="figure-title">Share of 4s by SEC filer category and by SEC industry office</p>
+      <p class="figure-sub">Dots are the share of 4s; lines are 95% confidence intervals. Categories are each company's current status.</p>
+      <div class="chart" id="chart-cat"></div>
+      <div class="chart" id="chart-office" style="margin-top:1.5rem"></div>
+      <details class="table-view"><summary>Table of these numbers</summary><div class="table-scroll" id="table-groups"></div></details>
+    </div>
+    <div id="groups-text"></div>
+
+    <h2>The companies the SEC charged</h2>
+    <p>Each of these companies settled charges from the EPS Initiative without admitting or denying the findings. The strips show the tenth-of-a-cent digit rebuilt from their own filings for the quarters the SEC's orders cover.</p>
+    <div class="full" id="cases"></div>
+
+    <h2>Look up a company</h2>
+    <p>Every company has its own page showing each quarter's numbers, the digit, and a link to the filing it came from.</p>
+    <form class="find" role="search" onsubmit="return false">
+      <label class="skip" for="q">Company name or ticker</label>
+      <input id="q" type="search" placeholder="Company name or ticker" autocomplete="off">
+      <ul class="suggest" id="q-list" hidden role="listbox"></ul>
+    </form>
+    <h3>Fewest fours</h3>
+    <p id="board-intro"></p>
+    <div class="full table-scroll" id="board"></div>
+    <p class="small"><a href="companies.html">See every company</a></p>
+
+    <h2>How this works</h2>
+    <p>Every number on this site comes from the XBRL data companies file with their 10-Qs and 10-Ks. For each company and quarter, a script takes the first filing that reported the quarter, divides net income available to common shareholders by the weighted-average diluted share count, checks that the result rounds back to the EPS the company printed, and reads the digit after the cent. The inputs are themselves rounded, usually to the thousand, so a digit is used only when every value those inputs allow gives the same digit. A new run happens every Saturday.</p>
+    <p><a href="method.html">The full method, checks and limits</a></p>
+  </article>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Built by Thibault Hagen. Data from SEC EDGAR XBRL filings, rebuilt every week. <span id="built"></span></p>
+    <p>A shortage of 4s is a statistical pattern. On its own it does not show that any company broke a rule. Nothing here is investment advice.</p>
+    <p><a href="https://github.com/Thibault-Hagen/missing-fours">Source code on GitHub</a></p>
+  </div>
+</footer>
+<script src="assets/common.js"></script>
+<script src="assets/charts.js"></script>
+<script src="assets/story.js"></script>
+</body>
+</html>

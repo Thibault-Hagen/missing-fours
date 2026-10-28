@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Method | The Missing Fours</title>
+<meta name="description" content="How the unrounded EPS is rebuilt from SEC XBRL filings, the checks that remove bad data, and the statistics behind each result.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the method</a>
+<header class="bar">
+  <div class="bar-inner">
+    <a class="wordmark" href="index.html">The Missing <span class="four">4</span>s</a>
+    <nav class="nav" aria-label="Site">
+      <a href="index.html">Story</a>
+      <a href="companies.html">Companies</a>
+      <a href="method.html">Method</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <div class="co-head">
+    <h1>How it works</h1>
+    <p class="lede">Every number on this site can be traced back to a filing on SEC EDGAR. This page explains each step, the checks that throw data out, and what the results can and cannot show.</p>
+  </div>
+
+  <h2>The steps</h2>
+  <ol class="steps">
+    <li>
+      <h3>Pull every company's XBRL data</h3>
+      <p>Since 2009, companies have tagged the numbers in their 10-Q and 10-K filings in XBRL, a format computers can read. The SEC publishes all of them every night in one archive, companyfacts.zip. Each Saturday a GitHub Actions job downloads it and keeps nine facts per period: reported basic and diluted EPS, the EPS numerators, net income, and the weighted-average share counts. It keeps only single quarters and full years.</p>
+    </li>
+    <li>
+      <h3>Keep the version first reported</h3>
+      <p>Every 10-K repeats the prior year's numbers, sometimes restated or adjusted for a stock split. The question here is about what a company published at the time, so for each period the script keeps the numbers from the first filing that reported it as its own current period, and ignores every later repeat.</p>
+    </li>
+    <li>
+      <h3>Recalculate EPS</h3>
+      <p class="procedure">Audit procedure: recalculation.</p>
+      <div class="formula">Diluted EPS = net income available to common shareholders
+              &divide; weighted-average diluted shares outstanding</div>
+      <p>If a company did not tag the "available to common shareholders" figure, its net income is tried instead. Basic EPS is rebuilt the same way, with basic shares, as a cross-check.</p>
+    </li>
+    <li>
+      <h3>Tie it back to the reported number</h3>
+      <p class="procedure">Audit procedure: agree to the source document.</p>
+      <p>The recalculated EPS has to round to the EPS the company printed. When it doesn't, the quarter is dropped rather than guessed at. The usual reason is the two-class method, where companies subtract earnings set aside for participating securities before dividing.</p>
+    </li>
+    <li>
+      <h3>Account for rounding in the inputs</h3>
+      <p>Filings usually report in thousands, so net income of $12,437 thousand could be anything from $12,436,500 to $12,437,500, and the share count has the same issue. The script works out the lowest and highest EPS those ranges allow, and uses the digit only when both ends agree on it. All of the arithmetic uses exact fractions, so floating-point error can never move a value across a rounding line.</p>
+    </li>
+    <li>
+      <h3>Read the digit</h3>
+      <p>The digit tested is the third decimal place of the unrounded EPS: the tenth of a cent. Only quarters with EPS of at least $0.10, profit or loss, are used. Below $0.10 that position is close to the first significant digit, where Benford's law makes low digits more common even in honest data.</p>
+    </li>
+    <li>
+      <h3>Compare with chance</h3>
+      <p class="procedure">Audit procedure: analytical procedure, comparing recorded amounts with an expectation.</p>
+      <p>If nothing nudged the numbers, each digit should appear about 10% of the time. The tests are described below.</p>
+    </li>
+  </ol>
+
+  <h2>How much data survives each check</h2>
+  <p class="prose">Counts of company-quarters at the latest rebuild. Full years go through the same steps and are reported separately.</p>
+  <div class="table-scroll" style="max-width:44rem"><table class="ledger" id="funnel"></table></div>
+
+  <h2>The statistics</h2>
+  <div class="prose">
+    <h3>All companies together</h3>
+    <p>The digit counts are compared with a model in which every digit has probability 0.10, using a chi-square goodness-of-fit test with 9 degrees of freedom.</p>
+    <div class="formula">&chi;&sup2; = &Sigma; (observed &minus; expected)&sup2; / expected</div>
+    <p>Every expected count is in the thousands, far above the usual minimum of 5. These quarters are not a random sample from a larger population; they are all of the reports. What the test asks is whether the process that produced the digits behaves like a fair ten-sided die.</p>
+    <p>The share of 4s on its own gets a one-proportion z-test against 0.10 and a 95% confidence interval, p&#770; &plusmn; 1.96&radic;(p&#770;(1 &minus; p&#770;)/n). The before-and-after comparison around the SEC's first EPS Initiative cases uses a two-proportion z-test.</p>
+    <h3>One company at a time</h3>
+    <p>For a single company with n tested quarters, the number of 4s is modeled as binomial with n trials and probability 0.10. The "chance by luck" on each page is the probability of seeing that many 4s or fewer. It is only reported once a company has 20 tested quarters, because with fewer the test has almost no power: even a company that never reported a 4 in 10 quarters would have a 35% chance of that by luck.</p>
+    <p>Testing thousands of companies at once guarantees some false alarms. At a 1% cutoff, about 1 company in 100 would be flagged even if none rounded on purpose. The <span id="luck-line">false-alarm rate</span> shown for each company is a Benjamini&ndash;Hochberg q-value: the estimated share of companies flagged at that level that would be flagged by luck alone.</p>
+  </div>
+
+  <h2>What this can't tell you</h2>
+  <div class="prose">
+    <p>A shortage of 4s at one company is not evidence of wrongdoing. Accruals and estimates involve judgment every quarter, and a company can reach the next cent through real decisions, like timing a shipment, that are legal and properly recorded. The pattern is strongest as a statement about companies in aggregate.</p>
+    <p>Large companies are under-represented. Many report net income in millions and shares in millions, which leaves too much rounding to pin down the digit, so their quarters are set aside as too imprecise rather than guessed at.</p>
+    <p>Analysts' consensus usually targets adjusted, non-GAAP EPS, which is not in XBRL. This site tests GAAP diluted EPS, the number in the filing itself.</p>
+    <p>XBRL has tagging errors, and companies change tags over time. The tie-out to reported EPS removes most bad inputs, but a quarter can occasionally pass with a numerator that is slightly off, which pushes its digit toward random and makes the results here, if anything, conservative.</p>
+    <p>Filer category is each company's current status, not its status in every past quarter.</p>
+  </div>
+
+  <h2>Sources</h2>
+  <ol class="refs prose">
+    <li>Malenko, N., Grundfest, J. A., and Shen, Y. (2023). Quadrophobia: Strategic rounding of EPS data. <em>Journal of Financial and Quantitative Analysis</em>, 58(8), 3231&ndash;3273.</li>
+    <li>Das, S., and Zhang, H. (2003). Rounding-up in reported EPS, behavioral thresholds, and earnings management. <em>Journal of Accounting and Economics</em>, 35(1), 31&ndash;50.</li>
+    <li>U.S. Securities and Exchange Commission. <a href="https://www.sec.gov/news/press-release/2020-226">Press release 2020-226</a> (Interface, Fulton Financial), <a href="https://www.sec.gov/news/press-release/2021-162">2021-162</a> (Healthcare Services Group), <a href="https://www.sec.gov/news/press-release/2022-64">2022-64</a> (Rollins), and <a href="https://www.sec.gov/enforce/34-96819-s">Release 34-96819</a> (Gentex).</li>
+    <li>U.S. Securities and Exchange Commission. <a href="https://www.sec.gov/edgar/sec-api-documentation">EDGAR application programming interfaces</a>, including the companyfacts bulk archive.</li>
+  </ol>
+
+  <h2>About</h2>
+  <div class="prose">
+    <p>The Missing Fours was built by Thibault Hagen. The code that downloads, checks and tests the data is <a href="https://github.com/Thibault-Hagen/missing-fours">open source on GitHub</a>, and the whole pipeline runs on free GitHub services. If a number looks wrong, open an issue there with the company and the quarter.</p>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Built by Thibault Hagen. Data from SEC EDGAR XBRL filings, rebuilt every week. <span id="built"></span></p>
+    <p>A shortage of 4s is a statistical pattern. On its own it does not show that any company broke a rule. Nothing here is investment advice.</p>
+  </div>
+</footer>
+<script src="assets/common.js"></script>
+<script src="assets/method.js"></script>
+</body>
+</html>

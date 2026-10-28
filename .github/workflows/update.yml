@@ -1,5 +1,8 @@
 name: Rebuild data and publish
 
+# Downloads the SEC's XBRL archive, rebuilds every company's unrounded EPS,
+# stores the results on the `data` branch, and republishes the site.
+
 on:
   schedule:
     # Saturdays at 6:41 am Chicago time, after the week's 10-Q and 10-K filings
@@ -7,14 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       keep_facts:
-        description: "Also save the extracted SEC facts as a downloadable artifact"
+        description: "Also save the extracted SEC facts to the facts branch"
         type: boolean
         default: false
-  push:
-    branches: [main]
-    paths:
-      - "pipeline/**"
-      - ".github/workflows/update.yml"
 
 permissions:
   contents: write
@@ -29,8 +27,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 150
-    outputs:
-      has_site: ${{ steps.site.outputs.has_site }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,8 +42,8 @@ jobs:
           SEC_USER_AGENT: "The Missing Fours research project HagenThibault@gmail.com"
         run: python pipeline/extract.py
 
-      - name: Save extracted facts to the facts branch for inspection
-        if: inputs.keep_facts || github.event_name == 'push'
+      - name: Save extracted facts to the facts branch
+        if: inputs.keep_facts
         run: |
           mkdir -p /tmp/facts
           cp build/facts.jsonl.gz pipeline/cache/*.json /tmp/facts/
@@ -58,31 +54,31 @@ jobs:
           git push -f -q "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" facts
 
       - name: Rebuild unrounded EPS and the statistics
-        if: hashFiles('pipeline/analyze.py') != ''
         run: python pipeline/analyze.py
 
-      - name: Commit updated data
+      - name: Publish the results to the data branch
+        run: |
+          cd site/data
+          git init -q -b data
+          git add .
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Data rebuilt $(date -u +%Y-%m-%d)"
+          git push -f -q "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" data
+
+      - name: Save the ticker and company-profile caches
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add pipeline/cache
-          if [ -d site/data ]; then git add site/data; fi
           if git diff --cached --quiet; then
-            echo "Nothing changed"
+            echo "Caches unchanged"
           else
-            git commit -m "Data rebuild $(date -u +%Y-%m-%d)"
+            git commit -m "Refresh SEC ticker and profile caches"
             git pull --rebase --quiet origin main
             git push
           fi
 
-      - name: Check for a site to publish
-        id: site
-        run: |
-          if [ -f site/index.html ]; then echo "has_site=true" >> "$GITHUB_OUTPUT"; else echo "has_site=false" >> "$GITHUB_OUTPUT"; fi
-
   deploy:
     needs: build
-    if: needs.build.outputs.has_site == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -91,6 +87,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
+      - uses: actions/checkout@v4
+        with:
+          ref: data
+          path: site/data
+      - run: rm -rf site/data/.git
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
