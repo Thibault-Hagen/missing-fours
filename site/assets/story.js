@@ -109,7 +109,9 @@
 
       // ----- digit chart -----
       $("fig-digits-sub").textContent = "Quarterly diluted EPS of $0.10 or more, " + MF.int(q.n) + " reports, " + span + ". Bars show how far each digit is above or below 10%.";
-      MF.chartDeviation($("chart-digits"), q.counts, { label: "Difference from expected for each digit 0 through 9" });
+      const relMax = (t) => (t ? Math.max(...t.counts.map((c) => Math.abs(c / (t.n / 10) - 1))) : 0);
+      const sharedExt = Math.max(0.04, relMax(q), relMax(g.q_neg));
+      MF.chartDeviation($("chart-digits"), q.counts, { label: "Difference from expected for each digit 0 through 9", ext: sharedExt });
       $("table-digits").append(digitTable(q.counts));
 
       const dev = q.counts.map((c) => Math.abs(c / q.n - 0.1));
@@ -125,7 +127,11 @@
           " " + MF.pct(q.share4, 2) + " of the time. Chance predicts 10%, so that is " + MF.int(Math.round(q.fours_missing)) + " fewer 4s than expected (" + rel4 + "). The ",
           five("5"),
           " turned up " + MF.pct(q.share5, 2) + " of the time." +
-            (rarest === 4 && biggestGap === 4 ? " No digit is rarer, and no digit is further from 10%." : rarest === 4 ? " No digit is rarer." : "")
+            (rarest === 4 && biggestGap === 4 ? " No digit is rarer, and no digit is further from 10%." : rarest === 4 ? " No digit is rarer." : "") +
+            (q.counts[6] / q.n > 0.1 && q.counts[7] / q.n > 0.1 && q.counts[3] / q.n < 0.1
+              ? " The pattern is wider than one digit: 3s are also scarce and 6s and 7s run heavy (" + MF.pct(q.counts[6] / q.n, 2) + " and " + MF.pct(q.counts[7] / q.n, 2) +
+                "), as if results a few tenths of a cent short of the line were pushed a few tenths past it rather than by a hair."
+              : "")
         ),
         P(
           "Could that be luck? If the digit were random, a sample this large would put the share of 4s within " +
@@ -138,24 +144,77 @@
             MF.pct(q.ci4[0], 2) + " to " + MF.pct(q.ci4[1], 2) + "."
         )
       );
-      const basic = g.q_pos_basic;
-      const strict = g.q_pos_strict;
-      if (basic && basic.n > 1000 && strict && strict.n > 1000) {
+      // ----- checks on the result -----
+      const checks = [
+        ["All quarters that tie out (the main result)", g.q_pos],
+        ["Only companies whose every quarter ties out", g.q_pos_clean],
+        ["Only quarters with the exact EPS numerator tagged", g.q_pos_strict],
+        ["Basic EPS instead of diluted", g.q_pos_basic],
+        ["Placebo: the next digit, the hundredth of a cent", g.placebo],
+      ].filter((r) => r[1] && r[1].n > 1000);
+      out.append(MF.el("h3", null, "Checking the result"));
+      out.append(
+        P(
+          "A pattern this small could come from the method rather than the companies, so the same test was run several other ways."
+        )
+      );
+      out.append(
+        MF.el(
+          "div",
+          { class: "table-scroll" },
+          MF.el(
+            "table",
+            { class: "ledger" },
+            MF.el("thead", null, MF.el("tr", null, ["Version of the test", "Quarters", "4s", "5s", "Chi-square p"].map((h, i) => MF.el("th", { class: i ? "r" : null }, h)))),
+            MF.el(
+              "tbody",
+              null,
+              checks.map(([label, t]) =>
+                MF.el(
+                  "tr",
+                  null,
+                  MF.el("td", null, label),
+                  MF.el("td", { class: "r" }, MF.int(t.n)),
+                  MF.el("td", { class: "r" }, MF.pct(t.share4, 2)),
+                  MF.el("td", { class: "r" }, MF.pct(t.share5, 2)),
+                  MF.el("td", { class: "r" }, t.pchi2 < 0.0001 ? "< 0.0001" : t.pchi2.toFixed(t.pchi2 < 0.01 ? 4 : 2))
+                )
+              )
+            )
+          )
+        )
+      );
+      const pl = g.placebo;
+      const cl = g.q_pos_clean;
+      const nm = S.near_miss || {};
+      const upShare = nm.up && nm.down != null ? nm.up / (nm.up + nm.down) : null;
+      if (pl) {
         out.append(
           P(
-            "The result does not depend on one choice of EPS. Using basic EPS instead, the share of 4s is " +
-              MF.pct(basic.share4, 2) + " across " + MF.int(basic.n) + " reports. Keeping only quarters where the company tagged its exact EPS numerator, it is " +
-              MF.pct(strict.share4, 2) + " across " + MF.int(strict.n) + "."
+            "The placebo tests the pipeline itself. Nobody has a reason to manage the hundredth of a cent, and that digit comes out flat (" + pFmt(pl.pchi2) +
+              "), so the method isn't producing patterns on its own."
           )
         );
       }
+      if (cl && upShare != null) {
+        out.append(
+          P(
+            "The second row deals with a problem I found in my own reconstruction. For some companies the rebuilt EPS runs a little high or low, usually because of adjustments, such as the two-class method, that the XBRL tags don't capture. When that pushes a value across the half-cent line, the quarter fails the tie-out and drops out, and the quarters that drop out are the ones sitting next to the line. Of the quarters that failed by exactly one cent, " +
+              Math.round(upShare * 100) + "% were cases where my number rounded up and the company's didn't, so the main result loses 5s it should have. Keeping only the " +
+              MF.int(S.clean_companies) + " companies whose quarters always tie out avoids that. There the shortage of 4s is larger (" + MF.pct(cl.share4, 2) + ") and the extra 5s show up (" + MF.pct(cl.share5, 2) + ")."
+          )
+        );
+      }
+      if (g.q_pos_basic) {
+        out.append(P("Basic EPS shows a weaker pattern, which fits companies aiming at diluted EPS, the number in the headline."));
+      }
 
       // ----- cliff -----
-      const bins = S.fine_pos;
+      const bins = S.fine_clean || S.fine_pos;
       const nb = bins.reduce((a, b) => a + b, 0);
       const avg = nb / 100;
       $("fig-cliff-sub").textContent =
-        "Each digit split into ten slices: …40 through …49 are the 4s, …50 through …59 are the 5s. " + MF.int(nb) + " quarterly reports precise enough to place in a slice.";
+        "Companies whose every quarter ties out. Each digit is split into ten slices: \u202640 through \u202649 are the 4s, \u202650 through \u202659 are the 5s. " + MF.int(nb) + " quarterly reports precise enough to place in a slice.";
       MF.chartCliff($("chart-cliff"), bins, { label: "Count of quarters in each hundredth-of-a-cent slice" });
       const tb = MF.el(
         "table",
@@ -168,33 +227,38 @@
         )
       );
       $("table-cliff").append(tb);
-      const just4 = bins.slice(45, 50).reduce((a, b) => a + b, 0) / 5;
-      const just5 = bins.slice(50, 55).reduce((a, b) => a + b, 0) / 5;
+      const digitAvg = (d) => bins.slice(d * 10, d * 10 + 10).reduce((a, b) => a + b, 0) / 10;
+      const minIdx = bins.indexOf(Math.min(...bins));
+      const lowDigits = [2, 3, 4].filter((d) => digitAvg(d) < avg);
+      const highDigits = [5, 6, 7, 8].filter((d) => digitAvg(d) > avg);
       const ct = $("cliff-text");
       ct.classList.add("prose");
       ct.append(
         P(
-          "The slice just below half a cent (…49) holds " + MF.rel(bins[49], avg) + " versus the average slice, and the slice just above it (…50) holds " +
-            MF.rel(bins[50], avg) + ". Across the top half of the 4s (…45 to …49) the average slice is " +
-            MF.rel(just4, avg) + "; across the bottom half of the 5s (…50 to …54) it is " + MF.rel(just5, avg) + "."
+          "The slice just below half a cent (\u202649) holds " + MF.rel(bins[49], avg) + " versus the average slice" +
+            (minIdx === 49 ? ", the emptiest of all 100" : "") +
+            ". Taken a digit at a time, " +
+            lowDigits.map((d) => "the " + d + "s run " + MF.rel(digitAvg(d), avg)).join(", ") +
+            (highDigits.length ? ", while " + highDigits.map((d) => "the " + d + "s run " + MF.rel(digitAvg(d), avg)).join(", ") : "") +
+            ". Single slices bounce around inside the shaded chance range; the pattern is in the runs of slices on either side of the line."
         )
       );
 
       // ----- losses -----
       const L = g.q_neg;
       if (L && L.n > 500) {
-        $("fig-loss-sub").textContent = "Quarterly diluted losses of $0.10 per share or more, " + MF.int(L.n) + " reports.";
-        MF.chartDeviation($("chart-loss"), L.counts, { label: "Difference from expected for each digit, loss quarters" });
+        $("fig-loss-sub").textContent = "Quarterly diluted losses of $0.10 per share or more, " + MF.int(L.n) + " reports. Same scale as the profit chart above.";
+        MF.chartDeviation($("chart-loss"), L.counts, { label: "Difference from expected for each digit, loss quarters", ext: sharedExt });
         $("table-loss").append(digitTable(L.counts));
         const lt = $("loss-text");
         lt.classList.add("prose");
         const flips = L.share4 > 0.1 && L.share5 < 0.1;
         lt.append(
           P(
-            "For losses the 4 shows up " + MF.pct(L.share4, 2) + " of the time and the 5 " + MF.pct(L.share5, 2) + " (χ² = " + L.chi2.toFixed(1) + ", " + pFmt(L.pchi2) + "). " +
+            "For losses the 4 shows up " + MF.pct(L.share4, 2) + " of the time and the 5 " + MF.pct(L.share5, 2) + " (χ² = " + L.chi2.toFixed(1) + ", " + pFmt(L.pchi2) + "), no clear pattern. " +
               (flips
                 ? "The pattern reverses, as deliberate rounding predicts: with a loss, 4s are the digit to have."
-                : "The pattern does not simply reverse, which is a reason to be careful about reading intent into the profit result.")
+                : "If deliberate rounding were the whole story, losses would show extra 4s, because a loss looks smaller when it rounds toward zero. They don't, so this check does not confirm the profit result. One possible reason is that the pressure comes from beating a positive estimate, which matters less once a company is reporting a loss, but this data can't show that.")
           )
         );
       } else {
@@ -227,12 +291,23 @@
               "). A two-proportion z-test gives z = " + S.era_test.z.toFixed(2).replace("-", "\u2212") + " (" + pFmt(S.era_test.p) + "). " +
               (moved
                 ? a.share4 > b.share4
-                  ? "The 4s came back part of the way, which fits companies paying attention once the screen was public."
+                  ? a.p4 >= 0.05
+                    ? "The shortage mostly went away: since the first cases, the share of 4s has been within what chance allows around 10%, which fits companies paying attention once the screen was public."
+                    : "The 4s came back part of the way, though they are still below 10%."
                   : "If anything the shortage grew."
-                : "The difference is within what chance would produce, so there is no clear sign the cases changed behavior.") +
-              (a.share4 < 0.1 && a.p4 < 0.01 ? " The 4s are still below 10% today." : "")
+                : "The difference is within what chance would produce, so there is no clear sign the cases changed behavior.")
           )
         );
+        const bc = g["era_clean:before"];
+        const ac = g["era_clean:after"];
+        if (bc && ac && S.era_test_clean) {
+          yt.append(
+            P(
+              "The companies whose quarters always tie out show the same shift: " + MF.pct(bc.share4, 2) + " 4s before and " + MF.pct(ac.share4, 2) + " after (z = " +
+                S.era_test_clean.z.toFixed(2).replace("-", "\u2212") + ", " + pFmt(S.era_test_clean.p) + "). This is a before-and-after comparison, not an experiment, so it can't prove the cases caused the change; analyst coverage, the mix of companies and the economy all changed too."
+            )
+          );
+        }
       }
 
       // ----- groups -----
@@ -272,6 +347,7 @@
         gt.append(
           P(
             "Among large accelerated filers, " + MF.pct(lg.k4 / lg.n, 2) + " of quarters end in a 4; among non-accelerated filers, " + MF.pct(sm.k4 / sm.n, 2) + "." +
+              (sm.k4 / sm.n < lg.k4 / lg.n ? " So the smaller companies show more of the pattern, not less, although their confidence interval is wider." : "") +
               (offices.length ? " By industry, the lowest share is in " + offices[0].label + " (" + MF.pct(offices[0].k4 / offices[0].n, 2) + ") and the highest in " + offices[offices.length - 1].label + " (" + MF.pct(offices[offices.length - 1].k4 / offices[offices.length - 1].n, 2) + ")." : "")
           )
         );
@@ -287,12 +363,15 @@
           MF.el("p", { class: "prose" }, c.what)
         );
         const win = (c.window || []).filter((r) => r[5] !== "missing");
+        if (!win.length) {
+          block.append(MF.el("p", { class: "small" }, "None of these quarters can be tested: the filings don't tag the numerator and share count needed to rebuild EPS."));
+        }
         if (win.length) {
           const strip = MF.el("div", { class: "strip", role: "list" });
           win.forEach((r) => {
             const [end, fp, fy, eps, digit, status, key] = r;
             const ok = status === "ok";
-            const cls = "cell" + (ok && eps > 0 ? (digit === 4 ? " c4" : digit === 5 ? " c5" : "") : ok ? " loss" : " na") + (key ? " key" : "");
+            const cls = "cell" + (ok && eps > 0 ? (digit === 4 ? " c4" : digit === 5 ? " c5" : "") : ok ? " loss" : " na") + (key ? " named" : "");
             const cell = MF.el("div", { class: cls, role: "listitem", tabindex: "0", "aria-label": fp + " " + fy + ": " + (ok ? "digit " + digit : "not tested") }, ok ? String(digit) : "–");
             const rowsFor = () => [
               { text: ok ? "Digit " + digit : "Not tested", strong: true },
@@ -310,6 +389,7 @@
           const k4 = tested.filter((r) => r[4] === 4).length;
           const k5 = tested.filter((r) => r[4] === 5).length;
           const keyed = win.filter((r) => r[6]);
+          const fives = tested.filter((r) => r[4] === 5 && r[7] != null).sort((x, y) => x[7] - y[7]);
           block.append(
             strip,
             MF.el("div", { class: "year-labels" }, MF.el("span", null, MF.period({ fp: win[0][1], fy: win[0][2], end: win[0][0] }) + " to " + MF.period({ fp: win[win.length - 1][1], fy: win[win.length - 1][2], end: win[win.length - 1][0] }))),
@@ -318,8 +398,10 @@
               { class: "small" },
               tested.length
                 ? "In these " + tested.length + " testable quarters: " + k4 + (k4 === 1 ? " four" : " fours") + " and " + k5 + (k5 === 1 ? " five" : " fives") + "." +
-                    (keyed.length ? " Outlined: " + keyed.map((r) => r[1] + " " + r[2] + (r[5] === "ok" ? " (digit " + r[4] + ")" : "")).join(" and ") + ", the quarters the SEC named." : "")
-                : "None of these quarters could be tested."
+                    (fives.length ? " Closest call: " + fives[0][1] + " " + fives[0][2] + ", which cleared the half-cent line by " + fives[0][7].toFixed(fives[0][7] < 0.01 ? 4 : 3) + " cents." : "") +
+                    (keyed.length ? " Outlined: " + keyed.map((r) => r[1] + " " + r[2] + (r[5] === "ok" ? " (digit " + r[4] + ")" : " (not testable)")).join(" and ") + ", the quarters the SEC named." : "") +
+                    (c.rank === 1 ? " Across all of its quarters, this company ranks first of " + MF.int(S.luck.tested) + " on the site's two tests." : "")
+                : "None of these quarters could be tested: the filings don't tag the share counts or numerators needed to rebuild EPS."
             )
           );
         }
@@ -328,10 +410,22 @@
 
       // ----- leaderboard -----
       const L2 = S.luck;
-      $("board-intro").textContent =
-        MF.int(L2.tested) + " companies have at least " + S.min_quarters + " quarters that could be tested. Below are the ones whose count of 4s would be least likely by chance. With that many companies, about " +
-        MF.int(L2.p01_expected) + " would fall under a 1% chance by luck alone; " + MF.int(L2.p01) + " actually do. Being on this list is a reason to look more closely at a company's filings. It does not show that the company did anything wrong.";
-      const head = ["", "Company", "Quarters", "4s found", "4s expected", "Chance by luck", "False-alarm rate"];
+      const top = S.board[0];
+      const caseTickers = (S.cases || []).map((c) => c.ticker);
+      const intro = [
+        MF.int(L2.tested) + " companies have at least " + S.min_quarters + " quarters that could be tested. Each gets two tests: too few 4s, and too many 5s. With " +
+          MF.int(2 * L2.tested) + " tests, about " + MF.int(2 * L2.p01_expected) + " would come in under a 1% chance by luck alone; " + MF.int(L2.p01 + L2.p5_01) + " do.",
+      ];
+      if (top && top.q < 0.05) {
+        intro.push(
+          " After allowing for that, " + (L2.q05 === 1 ? "one company stands out: " : "the company that stands out most is ") + top.name + ", with " + top.k5 + " fives in " + top.n +
+            " quarters where chance predicts " + (top.n / 10).toFixed(1) + "." +
+            (caseTickers.includes(top.ticker) ? " It is one of the companies the SEC charged under its EPS Initiative." : "")
+        );
+      }
+      intro.push(" For the rest of the list, the pattern is within what luck produces across this many companies. A place on it is a reason to read a company's filings more closely, not a finding that it did anything wrong.");
+      $("board-intro").textContent = intro.join("");
+      const head = ["", "Company", "Quarters", "4s", "5s", "Expected", "Chance by luck", "False-alarm rate"];
       $("board").append(
         MF.el(
           "table",
@@ -340,17 +434,18 @@
           MF.el(
             "tbody",
             null,
-            S.board.map((e) =>
+            S.board.slice(0, 10).map((e) =>
               MF.el(
                 "tr",
                 null,
                 MF.el("td", null, String(e.rank)),
                 MF.el("td", null, MF.el("a", { href: MF.companyHref(e.ticker, e.cik) }, e.name), e.ticker ? " " : "", e.ticker ? MF.el("span", { class: "pill" }, e.ticker) : ""),
                 MF.el("td", { class: "r" }, String(e.n)),
-                MF.el("td", { class: "r" }, String(e.k4)),
+                MF.el("td", { class: "r" }, MF.el("span", { class: e.signal === "4s" ? "d4" : "" }, String(e.k4))),
+                MF.el("td", { class: "r" }, MF.el("span", { class: e.signal === "5s" ? "d5" : "" }, String(e.k5))),
                 MF.el("td", { class: "r" }, (e.n / 10).toFixed(1)),
-                MF.el("td", { class: "r" }, MF.prob(e.p)),
-                MF.el("td", { class: "r" }, MF.pct(Math.min(1, e.q), 0))
+                MF.el("td", { class: "r" }, MF.prob(e.p) + (e.signal === "5s" ? " (5s)" : " (4s)")),
+                MF.el("td", { class: "r" }, MF.pct(Math.min(1, e.q), e.q < 0.01 ? 1 : 0))
               )
             )
           )

@@ -25,7 +25,13 @@
     );
     const L = S.luck;
     document.getElementById("luck-line").textContent =
-      "false-alarm rate (at the latest rebuild, " + MF.int(L.tested) + " companies were tested; about " + MF.int(L.p01_expected) + " would fall under 1% by luck alone, and " + MF.int(L.p01) + " did)";
+      "false-alarm rate (at the latest rebuild, " + MF.int(L.tested) + " companies were tested twice each; about " + MF.int(2 * L.p01_expected) + " tests would fall under 1% by luck alone, and " + MF.int(L.p01 + L.p5_01) + " did)";
+    const pl = S.groups.placebo;
+    if (pl) document.getElementById("placebo-line").textContent = "chi-square p = " + pl.pchi2.toFixed(2) + " across " + MF.int(pl.n) + " quarters";
+    const nm = S.near_miss;
+    if (nm && nm.up + nm.down > 0)
+      document.getElementById("near-line").textContent =
+        "In this data, " + Math.round((nm.up / (nm.up + nm.down)) * 100) + "% of the quarters that failed by exactly one cent ran high (" + MF.int(nm.up) + " of " + MF.int(nm.up + nm.down) + ")";
     document.getElementById("built").textContent = "Last rebuilt " + MF.date(S.built.slice(0, 10)) + ".";
   });
 })();

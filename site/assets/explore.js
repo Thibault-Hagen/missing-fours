@@ -62,15 +62,14 @@
               "tr",
               null,
               MF.el("td", null, r.rank == null ? "" : String(r.rank)),
-              MF.el("td", null, MF.el("a", { href: MF.companyHref(r.ticker, r.cik) }, r.name)),
+              MF.el("td", { class: "co" }, MF.el("a", { href: MF.companyHref(r.ticker, r.cik) }, r.name)),
               MF.el("td", null, r.ticker || ""),
               MF.el("td", { class: "r" }, String(r.n)),
-              MF.el("td", { class: "r" }, MF.el("span", { class: r.k4 < r.n / 10 ? "d4" : "" }, String(r.k4))),
-              MF.el("td", { class: "r" }, (r.n / 10).toFixed(1)),
-              MF.el("td", { class: "r" }, String(r.k5)),
-              MF.el("td", { class: "r" }, r.p == null ? "—" : MF.prob(r.p)),
-              MF.el("td", { class: "r" }, r.q == null ? "—" : MF.pct(Math.min(1, r.q), 0)),
-              MF.el("td", null, r.office && r.office !== "Unknown" ? r.office : "")
+              MF.el("td", { class: "r" }, MF.el("span", { class: r.p4 != null && r.p4 < 0.05 ? "d4" : "" }, String(r.k4))),
+              MF.el("td", { class: "r" }, MF.el("span", { class: r.p5 != null && r.p5 < 0.05 ? "d5" : "" }, String(r.k5))),
+              MF.el("td", { class: "r" }, r.p4 == null ? "\u2014" : MF.prob(r.p4)),
+              MF.el("td", { class: "r" }, r.p5 == null ? "\u2014" : MF.prob(r.p5)),
+              MF.el("td", { class: "r" }, r.q == null ? "\u2014" : MF.pct(Math.min(1, r.q), r.q < 0.01 ? 1 : 0)),
             )
           )
         );
@@ -104,7 +103,7 @@
         draw();
       });
       $("intro").textContent =
-        MF.int(rows.length) + " companies have at least one quarter tested. " + MF.int(D.tested) + " have the 20 or more quarters needed for a probability, and are ranked by how unlikely their count of 4s would be if the digit were random.";
+        MF.int(rows.length) + " companies have at least one quarter tested. " + MF.int(D.tested) + " have the 20 or more quarters needed for a probability. They are ranked by the stronger of two tests, too few 4s or too many 5s, compared with what a random digit would produce.";
       draw();
     })
     .catch((err) => {

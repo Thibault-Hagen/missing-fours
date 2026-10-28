@@ -84,20 +84,34 @@
         "Across " + n + " tested " + (n === 1 ? "quarter" : "quarters") + ", " + fours(C.k4, n) + ", where chance predicts about " + exp.toFixed(1) +
         ". That is too few quarters to say anything with confidence; a probability is given once a company has " + C.min_quarters_needed + ".";
     } else {
-      const unusual = C.p < 0.01;
       const parts = [
-        "Across " + n + " tested quarters, " + fours(C.k4, n) + ". Chance predicts about " + exp.toFixed(1) + ". ",
-        "If the digit were random, the chance of " + C.k4 + " or fewer would be " + MF.prob(C.p) + (C.p < 0.05 && MF.odds(C.p) ? " (" + MF.odds(C.p) + ")" : "") + ". ",
+        "Across " + n + " tested quarters, " + fours(C.k4, n) + ", and a 5 in " + C.k5 + ". Chance predicts about " + exp.toFixed(1) + " of each. ",
+        "If the digit were random, the chance of " + C.k4 + " or fewer 4s would be " + MF.prob(C.p4) + ", and the chance of " + C.k5 + " or more 5s would be " + MF.prob(C.p5) + ". ",
       ];
-      if (unusual) {
+      if (C.q < 0.05) {
         parts.push(
-          "That is unusual, but " + MF.int(C.tested) + " companies are being tested at once, so some will look this unusual by luck alone: about " + Math.max(1, Math.round(C.p * C.tested)) +
-            " at this level. The false-alarm rate for flagging this company is " + MF.pct(Math.min(1, C.q), 0) + "."
+          "Even after allowing for " + MF.int(2 * C.tested) + " tests across " + MF.int(C.tested) + " companies, the false-alarm rate is " + MF.pct(C.q, C.q < 0.01 ? 1 : 0) +
+            ". This is one of the most unusual patterns in the data."
+        );
+      } else if (C.p < 0.01) {
+        parts.push(
+          "That is unusual for one company, but with " + MF.int(2 * C.tested) + " tests across " + MF.int(C.tested) + " companies, results this extreme turn up by luck alone. The false-alarm rate is " +
+            MF.pct(Math.min(1, C.q), 0) + "."
         );
       } else {
-        parts.push("That is within the range chance produces.");
+        parts.push("Both are within the range chance produces.");
       }
       v.textContent = parts.join("");
+    }
+    if (C.nmis > 0) {
+      v.after(
+        MF.el(
+          "p",
+          { class: "small prose" },
+          C.nmis + (C.nmis === 1 ? " quarter" : " quarters") +
+            " of this company's EPS didn't tie out to the numbers in its filings, which usually means its EPS calculation includes adjustments the XBRL tags don't capture. Its rebuilt digits are less reliable than those of companies whose quarters always tie out."
+        )
+      );
     }
 
     const fr = $("facts");
@@ -106,7 +120,10 @@
       fact(String(n), "Quarters tested"),
       fact(String(C.k4), "Fours found, " + exp.toFixed(1) + " expected", "d4"),
       fact(String(C.k5), "Fives found, " + exp.toFixed(1) + " expected", "d5"),
-      fact(C.p == null ? "—" : MF.prob(C.p), C.p == null ? "Needs " + C.min_quarters_needed + " quarters for a probability" : "Chance of this few 4s by luck")
+      fact(
+        C.q == null ? "\u2014" : MF.pct(Math.min(1, C.q), C.q < 0.01 ? 1 : 0),
+        C.q == null ? "Needs " + C.min_quarters_needed + " quarters for a probability" : "False-alarm rate, after testing every company"
+      )
     );
 
     if (n > 0) {

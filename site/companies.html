@@ -27,7 +27,7 @@
 <main id="main" class="wrap">
   <div class="co-head">
     <h1>Companies</h1>
-    <p class="lede" id="intro">Every company with at least one quarter tested, ranked by how unlikely its count of 4s would be if the digit were random.</p>
+    <p class="lede" id="intro">Every company with at least one quarter tested, ranked by how far its 4s and 5s are from what a random digit would produce.</p>
   </div>
 
   <div class="filters" role="search">
@@ -48,7 +48,7 @@
         <option value="40">40 or more</option>
       </select>
     </label>
-    <label class="check"><input type="checkbox" id="f-listed" checked> Has a current ticker</label>
+    <label class="check"><input type="checkbox" id="f-listed"> Only companies with a current ticker</label>
   </div>
 
   <p class="count-line" id="count" aria-live="polite"></p>
@@ -60,19 +60,18 @@
           <th data-k="name"><button class="sort" type="button">Company</button></th>
           <th data-k="ticker"><button class="sort" type="button">Ticker</button></th>
           <th class="r" data-k="n"><button class="sort" type="button">Quarters</button></th>
-          <th class="r" data-k="k4"><button class="sort" type="button">4s found</button></th>
-          <th class="r">4s expected</th>
-          <th class="r" data-k="k5"><button class="sort" type="button">5s found</button></th>
-          <th class="r" data-k="p"><button class="sort" type="button">Chance by luck</button></th>
+          <th class="r" data-k="k4"><button class="sort" type="button">4s</button></th>
+          <th class="r" data-k="k5"><button class="sort" type="button">5s</button></th>
+          <th class="r" data-k="p4"><button class="sort" type="button">Chance of so few 4s</button></th>
+          <th class="r" data-k="p5"><button class="sort" type="button">Chance of so many 5s</button></th>
           <th class="r" data-k="q"><button class="sort" type="button">False-alarm rate</button></th>
-          <th data-k="office"><button class="sort" type="button">Industry office</button></th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
   </div>
   <p><button class="btn" type="button" id="more" hidden>Show 100 more</button></p>
-  <p class="small prose">Chance by luck is the probability of seeing this few 4s (or fewer) if each quarter's digit were random. The false-alarm rate (a Benjamini&ndash;Hochberg q-value) adjusts that for testing thousands of companies at once: it estimates the share of companies flagged at this level that would be flagged by luck alone. Companies with fewer than 20 tested quarters have no probability.</p>
+  <p class="small prose">Each company with 20 or more tested quarters gets two tests. "Chance of so few 4s" is the probability of seeing that many 4s or fewer if each quarter's digit were random; "chance of so many 5s" is the same for 5s, from the other side. The false-alarm rate (a Benjamini&ndash;Hochberg q-value) adjusts the stronger of the two for running both tests on every company: it estimates the share of companies flagged at that level that would be flagged by luck alone. Companies with fewer than 20 tested quarters have no probability.</p>
 </main>
 
 <footer>

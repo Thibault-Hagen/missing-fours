@@ -77,7 +77,8 @@
     const n = counts.reduce((a, b) => a + b, 0);
     const exp = n / 10;
     const rel = counts.map((c) => (c - exp) / exp);
-    const ext = Math.max(0.04, ...rel.map(Math.abs));
+    // opts.ext lets two charts share one scale so their bars can be compared
+    const ext = opts.ext || Math.max(0.04, ...rel.map(Math.abs));
     // leave room past the longest bar for its value label
     const want = ext * 1.32;
     const tk0 = ticks(0, want, 3);
@@ -130,46 +131,51 @@
 
   // ---------------------------------------------------------------
   // The fine histogram: 100 slices of a cent, to show the half-cent line.
+  // Each slice is drawn as its difference from the average slice, with the
+  // range that pure chance would usually produce shaded behind it.
   MF.chartCliff = function (el, bins, opts = {}) {
-    const max = Math.max(...bins);
     const mean = bins.reduce((a, b) => a + b, 0) / bins.length;
+    const rel = bins.map((c) => c / mean - 1);
+    const noise = 1.96 / Math.sqrt(mean); // about 95% of slices fall inside this if counts are random
+    const ext = Math.max(noise * 1.4, ...rel.map(Math.abs));
+    const tk0 = ticks(0, ext * 1.12, 3);
+    const lim = tk0[tk0.length - 1] >= ext * 1.05 ? tk0[tk0.length - 1] : tk0[tk0.length - 1] + (tk0[1] - tk0[0]);
     responsive(el, (W) => {
-      const H = opts.height || (W < 480 ? 240 : 290);
-      const m = { t: 30, r: W < 480 ? 6 : 62, b: 40, l: 46 };
+      const H = opts.height || (W < 480 ? 250 : 300);
+      const m = { t: 30, r: W < 480 ? 6 : 70, b: 40, l: 46 };
       const iw = W - m.l - m.r;
       const ih = H - m.t - m.b;
       const svg = s("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": opts.label || "" }, el);
-      const top = ticks(0, max * 1.08, 4).slice(-1)[0] >= max ? ticks(0, max * 1.08, 4).slice(-1)[0] : max * 1.1;
-      const y = (v) => m.t + ih - (v / top) * ih;
+      const y = (v) => m.t + ih / 2 - (v / lim) * (ih / 2);
       const band = iw / 100;
       const gap = band > 5 ? 2 : band > 3 ? 1 : 0.5;
       const bw = Math.max(1, band - gap);
+      // chance range
+      s("rect", { x: m.l, y: y(noise), width: iw, height: y(-noise) - y(noise), fill: "var(--ink)", opacity: 0.06 }, svg);
+      if (W >= 480) text(svg, W - m.r + 6, y(0) + 4, "Chance", {}), text(svg, W - m.r + 6, y(0) + 18, "range", {});
       const g = s("g", { class: "grid" }, svg);
       const tg = s("g", { class: "tick" }, svg);
-      ticks(0, top, 4).forEach((v) => {
-        if (v > 0) s("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v) }, g);
-        text(tg, m.l - 8, y(v) + 4, v >= 1000 ? MF.int(v / 1000) + "K" : MF.int(v), { "text-anchor": "end" });
+      ticks(-lim, lim, 4).forEach((v) => {
+        if (Math.abs(v) > 1e-9) s("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v) }, g);
+        text(tg, m.l - 8, y(v) + 4, (v > 0 ? "+" : v < 0 ? "\u2212" : "") + Math.round(Math.abs(v) * 100) + "%", { "text-anchor": "end" });
       });
       for (let b = 0; b < 100; b++) {
         const d = Math.floor(b / 10);
         const x = m.l + band * b + gap / 2;
         const grp = s("g", null, svg);
-        s("path", { d: barPath(x, y(0), y(bins[b]), bw), class: digitClass(d) + " vis" }, grp);
+        if (Math.abs(y(rel[b]) - y(0)) < 1.5) s("rect", { x, y: y(0) - 0.75, width: bw, height: 1.5, class: digitClass(d) + " vis" }, grp);
+        else s("path", { d: barPath(x, y(0), y(rel[b]), bw), class: digitClass(d) + " vis" }, grp);
         s("rect", { x: m.l + band * b, y: m.t, width: band, height: ih, class: "hit" }, grp);
         hover(grp, () => [
-          { text: MF.int(bins[b]) + " quarters", strong: true },
-          { text: "Unrounded EPS ending in …" + d + (b % 10) + "…" },
-          { text: d === 4 && b % 10 >= 5 ? "Just under half a cent: rounds down" : d === 5 && b % 10 <= 4 ? "Just over half a cent: rounds up" : (b < 50 ? "Rounds down" : "Rounds up") },
+          { text: MF.rel(bins[b], mean) + " vs. the average slice", strong: true },
+          { text: MF.int(bins[b]) + " quarters with unrounded EPS ending \u2026" + d + (b % 10) + "\u2026" },
+          { text: d === 4 && b % 10 >= 5 ? "Just under half a cent: rounds down" : d === 5 && b % 10 <= 4 ? "Just over half a cent: rounds up" : b < 50 ? "Rounds down" : "Rounds up" },
         ]);
       }
-      // average line
-      s("line", { x1: m.l, x2: W - m.r, y1: y(mean), y2: y(mean), class: "ref" }, svg);
-      if (W >= 480) text(svg, W - m.r + 6, y(mean) + 4, "Average", {});
-      // the half-cent line
-      const hx = m.l + band * 50;
-      s("line", { x1: hx, x2: hx, y1: m.t - 18, y2: y(0), class: "event" }, svg);
-      text(svg, hx + 6, m.t - 8, W < 480 ? "Half a cent" : "Half a cent: from here, EPS rounds up", { class: "label-strong" });
       s("line", { x1: m.l, x2: W - m.r, y1: y(0), y2: y(0), class: "baseline" }, svg);
+      const hx = m.l + band * 50;
+      s("line", { x1: hx, x2: hx, y1: m.t - 18, y2: m.t + ih, class: "event" }, svg);
+      text(svg, hx + 6, m.t - 8, W < 480 ? "Half a cent" : "Half a cent: from here, EPS rounds up", { class: "label-strong" });
       for (let d = 0; d < 10; d++) {
         text(svg, m.l + band * (d * 10 + 5), H - m.b + 20, String(d), {
           "text-anchor": "middle",

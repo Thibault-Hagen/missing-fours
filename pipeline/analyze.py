@@ -24,6 +24,7 @@ import gzip
 import json
 import math
 import os
+import re
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -120,6 +121,40 @@ OFFICE_LABEL = {
     "Office of Crypto Assets": "Crypto Assets",
     "Industrial Applications and Services": "Industrial Applications & Services",
 }
+
+
+SMALL_WORDS = {"of", "and", "the", "for", "in", "on", "at", "to", "de", "a", "an", "or"}
+KEEP_UPPER = {
+    "LLC", "LP", "LLP", "PLC", "NV", "SA", "AG", "SE", "USA", "US", "UK", "II", "III", "IV", "REIT", "ETF",
+    "PNC", "CSX", "NRG", "IBM", "AES", "CMS", "DTE", "PPL", "EOG", "NVR", "BOK", "UMB", "KKR", "TPG", "MSCI",
+    "MDU", "SPX", "KLA", "LKQ", "NCR", "RPM", "SEI", "SJW", "SLM", "UGI", "WEC", "WEX", "XPO", "ICU", "IDT",
+    "AMN", "CNO", "CNX", "EQT", "FMC", "HNI", "MKS", "MSA", "NBT", "OFG", "RLI", "TTM", "UFP", "BRT", "CBL",
+}
+
+
+def display_name(name):
+    """SEC names are often in capitals; set them in ordinary title case."""
+    if not name:
+        return name
+    # drop EDGAR's state-of-incorporation suffixes such as "/DE/" or "\\DE\\"
+    name = re.sub(r"\s*[/\\][A-Za-z]{2,3}[/\\]?\s*$", "", name).strip()
+    if any(ch.islower() for ch in name):
+        return name
+    out = []
+    for i, w in enumerate(name.split()):
+        core = w.strip(",.()")
+        if (
+            core in KEEP_UPPER
+            or "&" in core
+            or re.fullmatch(r"(?:[A-Z]\.)+[A-Z]?\.?", w.strip(",()"))
+            or (len(core) <= 3 and not any(v in core for v in "AEIOUY"))
+        ):
+            out.append(w)
+        elif core.lower() in SMALL_WORDS and i > 0:
+            out.append(w.lower())
+        else:
+            out.append("-".join(part[:1].upper() + part[1:].lower() for part in w.split("-")))
+    return " ".join(out)
 
 
 def frac(v):
@@ -262,6 +297,21 @@ def observe(r, units, series):
     return obs
 
 
+def near_miss(r, units):
+    """For a quarter that fails the tie-out: +1 if the rebuilt EPS rounds one cent
+    lower than reported, -1 if one cent higher, None otherwise."""
+    un, ud = units[r[ACCN]]
+    rep = frac(r[EPS_D] if r[EPS_D] is not None else r[EPS_BD])
+    for ni in (NUM_D, NUM_B, NI):
+        for di in (SH_D, SH_BD, SH_B):
+            n, d = frac(r[ni]), frac(r[di])
+            if eps_range(n, d, un, ud) is None:
+                continue
+            diff = (rep - round_cent(n / d)) * 100
+            return int(diff) if abs(diff) == 1 else None
+    return None
+
+
 def label(r):
     fp = r[FP] or ""
     if r[KIND] == "Q" and fp == "FY":
@@ -343,10 +393,24 @@ def main():
         with open(ppath) as f:
             profiles = json.load(f)
 
+    # The SEC assigns each filer to a review office by SIC code. Older or
+    # deregistered filers often have the office blank, so fill it from the most
+    # common office among current filers with the same SIC code.
+    by_sic = defaultdict(Counter)
+    for prof in profiles.values():
+        if prof.get("office") and prof.get("sic"):
+            by_sic[prof["sic"]][prof["office"]] += 1
+    sic_office = {sic: c.most_common(1)[0][0] for sic, c in by_sic.items()}
+    for prof in profiles.values():
+        if not prof.get("office") and prof.get("sic") in sic_office:
+            prof["office"] = sic_office[prof["sic"]]
+
     funnel = {k: Counter() for k in ("Q", "A")}
+    near = Counter()  # direction of one-cent tie-out failures
     groups = defaultdict(tally)  # aggregate digit tallies
     fine_pos = [0] * 100
     fine_neg = [0] * 100
+    fine_clean = [0] * 100
     by_year = defaultdict(lambda: [0, 0, 0])  # n, fours, fives
     companies = []
     detail = {}
@@ -356,6 +420,7 @@ def main():
         for line in fh:
             c = json.loads(line)
             cik = str(c["cik"])
+            c["name"] = display_name(c["name"])
             rows = c["rows"]
             units = scale_units(rows)
             prof = profiles.get(cik, {})
@@ -367,6 +432,24 @@ def main():
             co = tally()
             co_loss = tally()
             years = []
+            # First pass: does every testable quarter of this company tie out?
+            # Companies whose rebuilt EPS runs slightly high or low (two-class
+            # method, untagged adjustments) fail the tie-out whenever a value
+            # crosses the half-cent line, and those dropped quarters remove
+            # digits next to the line. Companies that never fail are the
+            # cleanest reconstructions, used as a robustness check.
+            tried = mism = 0
+            for r in rows:
+                if r[KIND] != "Q":
+                    continue
+                o0 = observe(r, units, "diluted")
+                if o0 is None:
+                    continue
+                if o0["status"] in ("ok", "imprecise", "small", "mismatch"):
+                    tried += 1
+                if o0["status"] == "mismatch":
+                    mism += 1
+            clean = mism == 0 and tried >= 8
             for r in rows:
                 kind = r[KIND]
                 o = observe(r, units, "diluted")
@@ -374,6 +457,12 @@ def main():
                     continue
                 funnel[kind]["reported"] += 1
                 funnel[kind][o["status"]] += 1
+                if o["status"] == "mismatch" and kind == "Q" and abs(o["reported"]) >= MIN_EPS:
+                    nm = near_miss(r, units)
+                    if nm == -1:
+                        near["up"] += 1
+                    elif nm == 1:
+                        near["down"] += 1
                 ob = observe(r, units, "basic")
 
                 if o["status"] == "ok":
@@ -390,6 +479,14 @@ def main():
                             add(groups["era:" + when], digit)
                             if o["src"] == "avail":
                                 add(groups["q_pos_strict"], digit)
+                            if clean:
+                                add(groups["q_pos_clean"], digit)
+                                add(groups["era_clean:" + when], digit)
+                                if o["fine"] is not None:
+                                    fine_clean[o["fine"]] += 1
+                            if o["fine"] is not None:
+                                # placebo: nobody manages the hundredth of a cent
+                                add(groups["placebo"], o["fine"] % 10)
                             y = by_year[r[END][:4]]
                             y[0] += 1
                             y[1] += digit == 4
@@ -455,23 +552,31 @@ def main():
                 "k5": k5,
                 "counts": co["counts"],
                 "nloss": co_loss["n"],
+                "nmis": mism,
+                "clean": clean,
                 "loss_counts": co_loss["counts"],
                 "first": min(years) if years else None,
                 "last": max(years) if years else None,
-                "p": S.binom_cdf(k4, n, 0.1) if n >= MIN_QUARTERS else None,
-                "p45": S.binom_sf(k5, k4 + k5, 0.5) if n >= MIN_QUARTERS and k4 + k5 > 0 else None,
+                # two one-sided tests: too few 4s, and too many 5s
+                "p4": S.binom_cdf(k4, n, 0.1) if n >= MIN_QUARTERS else None,
+                "p5": S.binom_sf(k5, n, 0.1) if n >= MIN_QUARTERS else None,
             }
+            entry["p"] = None if entry["p4"] is None else min(entry["p4"], entry["p5"])
             companies.append(entry)
             detail[cik] = co_rows
 
-    # Many companies are tested at once, so adjust for false alarms.
+    # Many companies are tested at once (two tests each), so adjust for false
+    # alarms across every test with Benjamini-Hochberg.
     tested = [e for e in companies if e["p"] is not None]
-    for e, q in zip(tested, S.bh_qvalues([e["p"] for e in tested])):
-        e["q"] = q
+    qs = S.bh_qvalues([e["p4"] for e in tested] + [e["p5"] for e in tested])
+    m = len(tested)
+    for i, e in enumerate(tested):
+        e["q4"], e["q5"] = qs[i], qs[m + i]
+        e["q"] = min(e["q4"], e["q5"])
+        e["signal"] = "5s" if e["p5"] < e["p4"] else "4s"
     ranked = sorted(tested, key=lambda e: (e["p"], -e["n"]))
     for i, e in enumerate(ranked, 1):
         e["rank"] = i
-    m = len(tested)
 
     # ---- aggregate results ----
     summary = {
@@ -482,9 +587,11 @@ def main():
         "companies_total": len(companies),
         "companies_tested": m,
         "funnel": {k: dict(v) for k, v in funnel.items()},
+        "near_miss": dict(near),
         "groups": {k: describe(v) for k, v in groups.items()},
         "fine_pos": fine_pos,
         "fine_neg": fine_neg,
+        "fine_clean": fine_clean,
         "by_year": {y: {"n": v[0], "k4": v[1], "k5": v[2]} for y, v in sorted(by_year.items())},
     }
     g = summary["groups"]
@@ -492,6 +599,19 @@ def main():
         b, a = groups["era:before"], groups["era:after"]
         z, p = S.two_prop_z(a["counts"][4], a["n"], b["counts"][4], b["n"])
         summary["era_test"] = {"z": z, "p": p}
+    if "era_clean:before" in groups and "era_clean:after" in groups:
+        b, a = groups["era_clean:before"], groups["era_clean:after"]
+        z, p = S.two_prop_z(a["counts"][4], a["n"], b["counts"][4], b["n"])
+        summary["era_test_clean"] = {"z": z, "p": p}
+    # share of quarters in the round-up half (digits 5-9) vs 50%
+    for key in ("q_pos", "q_pos_clean", "placebo"):
+        t = groups.get(key)
+        if t and t["n"]:
+            up = sum(t["counts"][5:])
+            z, p = S.one_prop_z(up, t["n"], 0.5)
+            summary["groups"][key]["roundup"] = up / t["n"]
+            summary["groups"][key]["roundup_z"] = z
+            summary["groups"][key]["roundup_p"] = p
     qpos = groups["q_pos"]
     summary["headline"] = {
         "observations": qpos["n"],
@@ -502,22 +622,37 @@ def main():
     # How many companies would look this unusual by luck alone?
     summary["luck"] = {
         "tested": m,
-        "p01": sum(1 for e in tested if e["p"] <= 0.01),
+        "p01": sum(1 for e in tested if e["p4"] <= 0.01),
         "p01_expected": round(0.01 * m, 1),
-        "p001": sum(1 for e in tested if e["p"] <= 0.001),
+        "p001": sum(1 for e in tested if e["p4"] <= 0.001),
         "p001_expected": round(0.001 * m, 1),
+        "p5_01": sum(1 for e in tested if e["p5"] <= 0.01),
+        "p5_001": sum(1 for e in tested if e["p5"] <= 0.001),
+        "q05": sum(1 for e in tested if e["q"] <= 0.05),
         "q10": sum(1 for e in tested if e["q"] <= 0.10),
     }
     # Distribution of fours across companies vs. what pure chance would give.
-    summary["zero_fours"] = {
-        "observed": sum(1 for e in tested if e["k4"] == 0),
-        "expected": sum(0.9 ** e["n"] for e in tested),
-    }
+    zp = [0.9 ** e["n"] for e in tested]
+    zobs = sum(1 for e in tested if e["k4"] == 0)
+    zexp = sum(zp)
+    zsd = math.sqrt(sum(p * (1 - p) for p in zp)) or 1
+    summary["zero_fours"] = {"observed": zobs, "expected": zexp, "z": (zobs - zexp) / zsd}
+    summary["clean_companies"] = sum(1 for e in companies if e["clean"] and e["n"] > 0)
 
     summary["board"] = [
-        {k: e.get(k) for k in ("cik", "ticker", "name", "n", "k4", "k5", "p", "q", "rank", "office")}
+        {k: e.get(k) for k in ("cik", "ticker", "name", "n", "k4", "k5", "p4", "p5", "q4", "q5", "p", "q", "signal", "rank", "office")}
         for e in ranked[:15]
     ]
+
+    def margin(r):
+        """Cents by which a profitable quarter's rebuilt EPS cleared (or missed) the
+        half-cent line, using the conservative end of its range."""
+        lo, hi, status = r[11], r[12], r[14]
+        if status != "ok" or lo is None or lo <= 0:
+            return None
+        x = Fraction(str(lo)) if r[13] == 5 else Fraction(str(hi))
+        line = Fraction(math.floor(x * 100), 100) + Fraction(1, 200)
+        return round(float((x - line) * 100), 4)
 
     by_tick = {e["ticker"]: e for e in companies if e["ticker"]}
     cases = []
@@ -527,8 +662,9 @@ def main():
         if e:
             rows = detail[str(e["cik"])]
             inside = [r for r in rows if r[2] == "Q" and case["from"] <= r[0] <= case["to"]]
-            item.update({"cik": e["cik"], "n": e["n"], "k4": e["k4"], "k5": e["k5"], "p": e["p"],
-                         "window": [[r[0], r[3], r[4], r[8], r[13], r[14], r[0] in case["key"]] for r in inside]})
+            item.update({"cik": e["cik"], "n": e["n"], "k4": e["k4"], "k5": e["k5"], "p4": e.get("p4"), "p5": e.get("p5"),
+                         "q": e.get("q"), "rank": e.get("rank"),
+                         "window": [[r[0], r[3], r[4], r[8], r[13], r[14], r[0] in case["key"], margin(r)] for r in inside]})
         cases.append(item)
     summary["cases"] = cases
 
@@ -552,7 +688,7 @@ def main():
     with open(os.path.join(OUT, "summary.json"), "w") as f:
         json.dump(summary, f, separators=(",", ":"))
 
-    cols = ["cik", "ticker", "name", "office", "cat", "n", "k4", "k5", "p", "q", "rank", "first", "last", "nloss"]
+    cols = ["cik", "ticker", "name", "office", "cat", "n", "k4", "k5", "p4", "p5", "q", "rank", "first", "last", "nloss", "clean"]
     table = []
     for e in sorted(companies, key=lambda e: (e["name"] or "").lower()):
         if e["n"] == 0:
@@ -578,7 +714,8 @@ def main():
             continue
         keep.add(cik + ".json")
         body = {k: e.get(k) for k in ("cik", "ticker", "exch", "name", "office", "cat", "sicd", "n", "k4", "k5", "counts",
-                                       "nloss", "loss_counts", "p", "p45", "q", "rank", "first", "last")}
+                                       "nloss", "loss_counts", "p4", "p5", "q4", "q5", "p", "q", "signal", "rank", "first", "last",
+                                       "nmis", "clean")}
         body["tested"] = m
         case = case_by_ticker.get(e["ticker"])
         if case:

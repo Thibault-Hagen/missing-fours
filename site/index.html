@@ -43,7 +43,7 @@
 
   <article class="wrap story">
     <h2>A tenth of a cent</h2>
-    <aside class="note"><p><strong>Two kinds of EPS.</strong> Basic EPS divides by shares actually outstanding. Diluted EPS also counts shares that options, convertibles and other securities could create. Diluted is the headline number, so it is the one used here; basic gives the same result.</p></aside>
+    <aside class="note"><p><strong>Two kinds of EPS.</strong> Basic EPS divides by shares actually outstanding. Diluted EPS also counts shares that options, convertibles and other securities could create. Diluted is the headline number, so it is the one used here; basic EPS is checked too.</p></aside>
     <p>Earnings per share is net income for the common shareholders divided by the average number of shares outstanding. Companies publish it to two decimal places, so a quarter that works out to $0.1249 is reported as $0.12, and one that works out to $0.1250 is reported as $0.13. The gap between those two quarters is a hundredth of a cent. The gap in the headline is a full cent.</p>
     <p>That cent matters because analysts publish their consensus estimate to the cent, and a company that misses it by a penny can see its stock fall. The tenth-of-a-cent digit is where a small judgment call (a bonus accrual trimmed, a reserve released a quarter early) can turn a 4 into a 5, and a miss into a match.</p>
     <aside class="note"><p><strong>Why only EPS of $0.10 or more.</strong> In small numbers, low digits are more common than high ones (Benford's law). From $0.10 up, the tenth of a cent is the third significant digit or later, where every digit is within 0.2 points of 10%.</p></aside>
@@ -64,8 +64,9 @@
     <h2>The half-cent line</h2>
     <p id="cliff-intro">If companies were nudging results across the rounding line, the missing quarters should come from just below half a cent and reappear just above it. Splitting each digit into ten finer slices shows where they go.</p>
     <div class="figure" id="fig-cliff">
-      <p class="figure-title">Unrounded EPS, by the digits just past the cent</p>
+      <p class="figure-title">How many quarters land in each hundredth-of-a-cent slice, compared with the average slice</p>
       <p class="figure-sub" id="fig-cliff-sub"></p>
+      <div class="legend" aria-hidden="true"><span><i class="key key-4"></i>4s, round down</span><span><i class="key key-5"></i>5s, round up</span><span><i class="key key-other"></i>Other digits</span><span><i class="key" style="background:var(--ink);opacity:.15"></i>Range chance usually produces</span></div>
       <div class="chart" id="chart-cliff"></div>
       <details class="table-view"><summary>Table of these numbers</summary><div class="table-scroll" id="table-cliff"></div></details>
     </div>
@@ -93,7 +94,7 @@
     <div id="years-text"></div>
 
     <h2>Who rounds</h2>
-    <p>The SEC sorts companies by size into filer categories, using the market value of shares held by outside investors. Large accelerated filers have $700 million or more, are covered by the most analysts, and have the most to lose from a missed estimate.</p>
+    <p>The SEC sorts companies by size into filer categories, using the market value of shares held by outside investors. Large accelerated filers have $700 million or more and draw the most analyst attention, so if the pressure comes from analysts' estimates, they might be expected to round the most.</p>
     <div class="figure" id="fig-groups">
       <p class="figure-title">Share of 4s by SEC filer category and by SEC industry office</p>
       <p class="figure-sub">Dots are the share of 4s; lines are 95% confidence intervals. Categories are each company's current status.</p>
@@ -104,7 +105,7 @@
     <div id="groups-text"></div>
 
     <h2>The companies the SEC charged</h2>
-    <p>Each of these companies settled charges from the EPS Initiative without admitting or denying the findings. The strips show the tenth-of-a-cent digit rebuilt from their own filings for the quarters the SEC's orders cover.</p>
+    <p>Each of these companies settled charges from the EPS Initiative without admitting or denying the findings. The strips show the tenth-of-a-cent digit rebuilt from their own filings for the quarters the SEC's orders cover. The test is not a lie detector: an adjustment that moves EPS by a full cent changes the digit by ten places, not one, and some companies' filings don't tag what's needed to rebuild their EPS.</p>
     <div class="full" id="cases"></div>
 
     <h2>Look up a company</h2>
@@ -114,7 +115,7 @@
       <input id="q" type="search" placeholder="Company name or ticker" autocomplete="off">
       <ul class="suggest" id="q-list" hidden role="listbox"></ul>
     </form>
-    <h3>Fewest fours</h3>
+    <h3>The most unusual companies</h3>
     <p id="board-intro"></p>
     <div class="full table-scroll" id="board"></div>
     <p class="small"><a href="companies.html">See every company</a></p>
