@@ -32,6 +32,6 @@
     if (nm && nm.up + nm.down > 0)
       document.getElementById("near-line").textContent =
         "In this data, " + Math.round((nm.up / (nm.up + nm.down)) * 100) + "% of the quarters that failed by exactly one cent ran high (" + MF.int(nm.up) + " of " + MF.int(nm.up + nm.down) + ")";
-    document.getElementById("built").textContent = "Last rebuilt " + MF.date(S.built.slice(0, 10)) + ".";
+    document.getElementById("built").textContent = "Last rebuilt " + MF.builtDate(S.built) + ".";
   });
 })();

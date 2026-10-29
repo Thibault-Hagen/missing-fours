@@ -100,11 +100,11 @@
       // lede reacts to the result
       const short4 = q.pchi2 < 0.001 && q.share4 < 0.1 && q.p4 < 0.001;
       $("lede").textContent =
-        "Companies report earnings per share rounded to the cent. I rebuilt the unrounded number from SEC filings for every public company, to look at the one digit that rounding throws away. It should be a 4 one time in ten. " +
+        "Companies report earnings per share rounded to the cent. I rebuilt the unrounded number from the SEC filings of thousands of public companies, to look at the one digit that rounding throws away. It should be a 4 one time in ten. " +
         (short4 ? "It isn't." : "Here is how often it actually is.");
       $("hero-meta").textContent =
-        "Rebuilt from " + MF.int(q.n) + " quarterly reports by " + MF.int(S.headline.companies) + " companies, " + span + ". Last rebuilt " + MF.date(S.built.slice(0, 10)) + ".";
-      $("built").textContent = "Last rebuilt " + MF.date(S.built.slice(0, 10)) + ".";
+        "Rebuilt from " + MF.int(q.n) + " quarterly reports by " + MF.int(S.headline.companies) + " companies, " + span + ". Last rebuilt " + MF.builtDate(S.built) + ".";
+      $("built").textContent = "Last rebuilt " + MF.builtDate(S.built) + ".";
       renderTape(S);
 
       // ----- digit chart -----
@@ -347,7 +347,7 @@
         gt.append(
           P(
             "Among large accelerated filers, " + MF.pct(lg.k4 / lg.n, 2) + " of quarters end in a 4; among non-accelerated filers, " + MF.pct(sm.k4 / sm.n, 2) + "." +
-              (sm.k4 / sm.n < lg.k4 / lg.n ? " So the smaller companies show more of the pattern, not less, although their confidence interval is wider." : "") +
+              (sm.k4 / sm.n < lg.k4 / lg.n ? " Smaller companies show at least as much of the pattern as large ones, although the gap between categories is within the margin of error." : "") +
               (offices.length ? " By industry, the lowest share is in " + offices[0].label + " (" + MF.pct(offices[0].k4 / offices[0].n, 2) + ") and the highest in " + offices[offices.length - 1].label + " (" + MF.pct(offices[offices.length - 1].k4 / offices[offices.length - 1].n, 2) + ")." : "")
           )
         );

@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Missing Fours</title>
-<meta name="description" content="Rebuilding the hidden tenth-of-a-cent digit in every US public company's earnings per share, to see whether companies round their way to the next penny.">
+<meta name="description" content="Rebuilding the hidden tenth-of-a-cent digit in U.S. public companies' earnings per share from SEC filings, to see whether companies round their way to the next penny.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="The Missing Fours">
-<meta property="og:description" content="The digit that rounding throws away should be 4 one time in ten. I rebuilt it from SEC filings for every public company to check.">
+<meta property="og:description" content="The digit that rounding throws away should be 4 one time in ten. I rebuilt it from the SEC filings of thousands of public companies to check.">
 <meta property="og:image" content="https://thibault-hagen.github.io/missing-fours/og-image.png">
 <meta property="og:url" content="https://thibault-hagen.github.io/missing-fours/">
 <meta name="twitter:card" content="summary_large_image">
@@ -34,7 +34,7 @@
   <section class="wrap hero">
     <div>
       <h1>The Missing Fours</h1>
-      <p class="lede" id="lede">Companies report earnings per share rounded to the cent. I rebuilt the unrounded number from SEC filings for every public company, to look at the one digit that rounding throws away. It should be a 4 one time in ten.</p>
+      <p class="lede" id="lede">Companies report earnings per share rounded to the cent. I rebuilt the unrounded number from the SEC filings of thousands of public companies, to look at the one digit that rounding throws away. It should be a 4 one time in ten.</p>
       <p class="hero-meta" id="hero-meta">Loading the latest numbers&hellip;</p>
       <p class="byline">By Thibault Hagen</p>
     </div>
@@ -49,7 +49,7 @@
     <aside class="note"><p><strong>Why only EPS of $0.10 or more.</strong> In small numbers, low digits are more common than high ones (Benford's law). From $0.10 up, the tenth of a cent is the third significant digit or later, where every digit is within 0.2 points of 10%.</p></aside>
     <p>If nobody touched the numbers, that digit would be close to random, with each of 0 through 9 turning up about 10% of the time. A shortage of 4s, with a matching surplus of 5s, is the fingerprint of rounding up on purpose.</p>
     <p>Three finance and law researchers, one of them former SEC commissioner Joseph Grundfest, named the pattern quadrophobia. Studying company reports from 1980 to 2017, they found that 4 was the rarest digit in that spot, and that companies avoiding it were more likely to restate their results later and to face SEC enforcement or shareholder lawsuits. The SEC's Division of Enforcement uses data analytics built on the same idea. Its EPS Initiative, which announced its first cases in 2020, has been reported to screen for companies with too few 4s, and its cases include Interface, Fulton Financial, Healthcare Services Group, Rollins and Gentex.</p>
-    <p>Both of those efforts rely on paid or private data. This site rebuilds the digit from public SEC filings for every company that files them, and redoes it every week.</p>
+    <p>Both of those efforts rely on paid or private data. This site rebuilds the digit from free public SEC filings, for every company whose filings contain the numbers needed, and redoes it every week.</p>
 
     <h2 id="finding-h">What the filings show</h2>
     <div class="figure" id="fig-digits">

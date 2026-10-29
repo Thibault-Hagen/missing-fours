@@ -580,7 +580,7 @@ def main():
 
     # ---- aggregate results ----
     summary = {
-        "built": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
+        "built": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "min_eps": float(MIN_EPS),
         "min_quarters": MIN_QUARTERS,
         "initiative_date": INITIATIVE_DATE,

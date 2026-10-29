@@ -62,6 +62,13 @@
     });
   };
 
+  // The rebuild time is stored in UTC ("2026-10-31T11:41Z"); show it as the viewer's local date.
+  MF.builtDate = (stamp) => {
+    const t = new Date(stamp);
+    if (isNaN(t)) return MF.date(String(stamp).slice(0, 10));
+    return t.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  };
+
   MF.period = (row) => {
     // row: {fp, fy, end}
     const fp = row.fp || "";
